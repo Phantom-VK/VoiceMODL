@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Environments
+.venv/
+venv/
+.env
+
+# Editor/IDE
+.idea/
+*.swp
+.DS_Store
+
+# Project artifacts
+VoiceMODL_blueprint.md
+environment-info.txt
+
+# Audio/output temp
+*.wav
+*.flac
+*.mp3
+
