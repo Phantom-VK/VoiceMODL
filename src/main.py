@@ -17,6 +17,7 @@ from .audio_io import (
     default_io_devices,
     format_device,
     list_devices,
+    RealTimeProcessor,
 )
 from .dsp_core import pitch_shift, simple_autotune
 from .presets import PRESETS
@@ -50,33 +51,31 @@ def cmd_passthrough(args: argparse.Namespace) -> None:
 
     preset = PRESETS[args.preset]
 
-    def process_frame(frame, sr: float) -> Optional[object]:
-        # frame: (frames, channels) float32
-        mono = frame[:, 0]
+    def process_frame(mono: np.ndarray, sr: float) -> Optional[np.ndarray]:
         if preset.get("autotune"):
             out = simple_autotune(mono, int(sr), key=preset.get("key", "C"), scale=preset.get("scale", "major"))
         else:
             out = pitch_shift(mono, int(sr), preset.get("pitch_shift_semitones", 0))
-        # return mono; audio_io will handle channel duplication
-        return out.astype(frame.dtype)
+        return out.astype(np.float32)
 
-    stream = create_passthrough_stream(
+    processor = RealTimeProcessor(
+        process_fn=process_frame,
         input_device=in_dev,
         output_device=out_dev,
-        samplerate=args.samplerate,
+        samplerate=int(args.samplerate),
         blocksize=args.blocksize,
         channels=args.channels,
-        process_fn=process_frame,
     )
 
     print("[info] Starting pass-through. Ctrl+C to stop.")
     with contextlib.ExitStack() as stack:
-        stack.enter_context(stream)
+        stack.enter_context(processor)
         try:
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
             print("\n[info] Stopping.")
+            print(f"[stats] dropped_in={processor.stats['dropped_in']} underrun_out={processor.stats['underrun_out']}")
 
 
 def main() -> None:
