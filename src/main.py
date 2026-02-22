@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=int, default=None, help="Output device index")
     parser.add_argument("--samplerate", type=float, default=48_000, help="Sample rate (Hz)")
     parser.add_argument("--blocksize", type=int, default=1024, help="Frames per block")
-    parser.add_argument("--channels", type=int, default=1, help="Number of channels (1=mono,2=stereo)")
+    parser.add_argument("--channels", type=int, default=2, help="Number of channels (1=mono,2=stereo)")
     parser.add_argument("--preset", type=str, default="normal", choices=list(PRESETS.keys()))
     return parser.parse_args()
 

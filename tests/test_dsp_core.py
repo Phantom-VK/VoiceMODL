@@ -20,6 +20,5 @@ def test_pitch_shift_up_two_semitones():
 
     shifted = pitch_shift(tone, sr, 2)
     peak = _peak_freq(shifted, sr)
-    # Expect about 440 * 2^(2/12) ≈ 554.37 Hz
-    assert abs(peak - 554.37) < 6.0
-
+    expected = f * 2 ** (2 / 12)  # ≈ 493.88 Hz
+    assert abs(peak - expected) < 6.0

@@ -24,7 +24,8 @@ def pitch_shift(audio: np.ndarray, sr: int, semitones: float) -> np.ndarray:
 
     if semitones == 0:
         return audio
-    return librosa.effects.pitch_shift(audio, sr=sr, n_steps=semitones, res_type="soxr_vhq")
+    # Use a lighter resampler to reduce real-time CPU load.
+    return librosa.effects.pitch_shift(audio, sr=sr, n_steps=semitones, res_type="kaiser_fast")
 
 
 def hz_to_midi(hz: float) -> float:
@@ -102,6 +103,7 @@ def simple_autotune(audio: np.ndarray, sr: int, key: str = "C", scale: str = "ma
     f0, _, _ = librosa.pyin(audio, fmin=librosa.note_to_hz("C2"), fmax=librosa.note_to_hz("C7"))
     f0_median = np.nanmedian(f0)
     if np.isnan(f0_median) or f0_median <= 0:
+        # No pitch detected (silence/noise); leave frame untouched.
         return audio
 
     midi = hz_to_midi(f0_median)
@@ -109,4 +111,3 @@ def simple_autotune(audio: np.ndarray, sr: int, key: str = "C", scale: str = "ma
     semitones = target_midi - midi
 
     return pitch_shift(audio, sr, semitones)
-
