@@ -4,14 +4,14 @@
 
 ```mermaid
 flowchart LR
-    Mic[Physical Mic] -->|Pulse/ALSA capture| InDev[pulse/alsa input index]
-    InDev --> RTProc[RealTimeProcessor\n(queue + worker thread)]
-    RTProc --> DSP[dsp_core.py\n pitch_shift / autotune]
+    Mic[Physical Mic] --> InDev[pulse/alsa input]
+    InDev --> RTProc[RealTimeProcessor<br/>queue + worker thread]
+    RTProc --> DSP[dsp_core.py<br/>pitch_shift / autotune]
     DSP --> RTProc
-    RTProc --> Sink[VoiceModSink (null sink)]
-    Sink --> VSource[VoiceModSource (virtual mic)]
+    RTProc --> Sink[VoiceModSink<br/>null sink]
+    Sink --> VSource[VoiceModSource<br/>virtual mic]
     VSource --> Apps[Discord/Zoom/OBS]
-    Sink -. monitor .-> Monitor[Optional loopback to headphones]
+    Sink -.->|monitor| Monitor[Optional loopback<br/>to headphones]
 ```
 
 ## Components
@@ -30,20 +30,25 @@ flowchart LR
 
 ```mermaid
 sequenceDiagram
-    participant ALSA/Pulse as Sounddevice Callback
-    participant InQ as Input Queue
-    participant Worker as DSP Worker Thread
-    participant OutQ as Output Queue
-    participant SD as Sounddevice Output
+    participant A as Sounddevice Callback
+    participant IQ as Input Queue
+    participant W as DSP Worker
+    participant OQ as Output Queue
+    participant SDO as Sounddevice Output
+    
+    Note over A: Runs on audio thread<br/>(high priority)
+    
+    A->>IQ: 1. push frame (5μs)
+    W->>IQ: 2. pop frame (block if empty)
+    Note over W: 3. DSP processing<br/>~15-25ms
+    W->>OQ: 4. push result (5μs)
+    
+    A->>OQ: 5. pop result (block if empty)
+    Note over A,OQ: if empty: zero-pad<br/>underrun counter++
+    A->>SDO: 6. write to sink (5μs)
+    
+    Note over IQ: if full: drop frame<br/>overrun counter++
 
-    ALSA/Pulse->>InQ: push input frame (non-blocking)
-    Worker->>InQ: get frame (blocking)
-    Worker->>Worker: mono extract + DSP (pitch/autotune)
-    Worker->>OutQ: push processed frame (non-blocking)
-    ALSA/Pulse->>OutQ: pop processed frame (non-blocking)
-    ALSA/Pulse->>SD: write to output buffer
-    Note over ALSA/Pulse,OutQ: If OutQ empty → zero frame; stats underrun++
-    Note over InQ: If full → drop frame; stats dropped_in++
 ```
 
 ## Routing specifics (PulseAudio/PipeWire)
