@@ -101,6 +101,7 @@ def simple_autotune(audio: np.ndarray, sr: int, key: str = "C", scale: str = "ma
         return audio
 
     f0, _, _ = librosa.pyin(audio, fmin=librosa.note_to_hz("C2"), fmax=librosa.note_to_hz("C7"))
+    # Ignore warnings when pyin returns all-NaN on silence/noise
     f0_median = np.nanmedian(f0)
     if np.isnan(f0_median) or f0_median <= 0:
         # No pitch detected (silence/noise); leave frame untouched.
