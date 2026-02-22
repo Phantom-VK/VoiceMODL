@@ -1,0 +1,21 @@
+{
+  "normal": {
+    "pitch_shift_semitones": 0,
+    "autotune": false
+  },
+  "female": {
+    "pitch_shift_semitones": 5,
+    "autotune": false
+  },
+  "male": {
+    "pitch_shift_semitones": -5,
+    "autotune": false
+  },
+  "tpain": {
+    "pitch_shift_semitones": 0,
+    "autotune": true,
+    "key": "G",
+    "scale": "major",
+    "retune_speed": "fast"
+  }
+}

@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--blocksize", type=int, default=1024, help="Frames per block")
     parser.add_argument("--channels", type=int, default=2, help="Number of channels (1=mono,2=stereo)")
     parser.add_argument("--preset", type=str, default="normal", choices=list(PRESETS.keys()))
+    parser.add_argument("--drywet", type=float, default=1.0, help="Wet mix fraction (0=dry,1=wet)")
     return parser.parse_args()
 
 
@@ -53,12 +54,15 @@ def cmd_passthrough(args: argparse.Namespace) -> None:
 
     preset = PRESETS[args.preset]
 
+    drywet = float(np.clip(args.drywet, 0.0, 1.0))
+
     def process_frame(mono: np.ndarray, sr: float) -> Optional[np.ndarray]:
         if preset.get("autotune"):
             out = simple_autotune(mono, int(sr), key=preset.get("key", "C"), scale=preset.get("scale", "major"))
         else:
             out = pitch_shift(mono, int(sr), preset.get("pitch_shift_semitones", 0))
-        return out.astype(np.float32)
+        blended = (1 - drywet) * mono + drywet * out
+        return blended.astype(np.float32)
 
     processor = RealTimeProcessor(
         process_fn=process_frame,
