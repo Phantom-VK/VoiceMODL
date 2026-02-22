@@ -70,19 +70,28 @@ def create_passthrough_stream(
     blocksize: int = 1024,
     channels: int = 1,
     dtype: str = "float32",
+    process_fn: Optional[callable] = None,
 ) -> sd.Stream:
-    """Create a sounddevice Stream that copies input to output.
+    """Create a sounddevice Stream that copies (or processes) input to output.
 
-    The caller is responsible for starting/stopping the stream (context manager
-    preferred). Devices are referenced by index; if None, sounddevice defaults
-    are used.
+    Args:
+        process_fn: callable(frame, sr) -> mono np.ndarray. If None, acts as pure pass-through.
     """
 
     def callback(indata, outdata, frames, time, status):  # type: ignore[unused-argument]
         if status:
             # Status contains XRuns/underflows; print once per callback.
             print(f"[audio_io] stream status: {status}")
-        outdata[:] = _channel_copy(indata, channels)
+        if process_fn is None:
+            out = _channel_copy(indata, channels)
+        else:
+            mono_out = process_fn(indata, samplerate)
+            if mono_out is None:
+                mono_out = indata[:, 0]
+            if mono_out.ndim == 1:
+                mono_out = mono_out[:, None]
+            out = _channel_copy(mono_out, channels)
+        outdata[:] = out
 
     stream = sd.Stream(
         samplerate=samplerate,
@@ -101,4 +110,3 @@ def default_io_devices() -> Tuple[int, int]:
 
     default_in, default_out = sd.default.device
     return int(default_in), int(default_out)
-

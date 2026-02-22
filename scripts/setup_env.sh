@@ -6,16 +6,40 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 VENV_DIR="${PROJECT_ROOT}/.venv"
 
-python_bin() {
-  if command -v python3 >/dev/null 2>&1; then
-    command -v python3
-  else
-    echo "python3 not found. Please install Python 3.10+." >&2
-    return 1
+choose_python() {
+  local candidates=()
+
+  # User override first
+  if [[ -n "${PYTHON-}" ]]; then
+    candidates+=("${PYTHON}")
   fi
+
+  # Common system interpreters (ordered by preference)
+  candidates+=(python3 python3.13 python3.12 python3.11 python3.10 python3.9)
+  candidates+=(/usr/bin/python3 /usr/bin/python3.9)
+  candidates+=(/home/vikramaditya/micromamba/bin/python3.9)
+
+  for candidate in "${candidates[@]}"; do
+    if command -v "${candidate}" >/dev/null 2>&1; then
+      # ensure ssl module is importable
+      if "${candidate}" - <<'PY' >/dev/null 2>&1
+import ssl
+PY
+      then
+        command -v "${candidate}"
+        return 0
+      fi
+    fi
+  done
+
+  return 1
 }
 
-PYTHON="$(python_bin)"
+PYTHON="$(choose_python || true)"
+if [[ -z "${PYTHON}" ]]; then
+  echo "No usable Python (with ssl module) found. Install Python 3.9+ with OpenSSL support." >&2
+  exit 1
+fi
 
 echo "[setup] Using python at: ${PYTHON}"
 
