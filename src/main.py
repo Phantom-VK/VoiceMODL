@@ -12,6 +12,8 @@ import contextlib
 import time
 from typing import Optional
 
+import numpy as np
+
 from .audio_io import (
     create_passthrough_stream,
     default_io_devices,
