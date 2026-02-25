@@ -1,7 +1,4 @@
 """DSP helpers: pitch shifting and a simple autotune-like correction.
-
-This is intentionally lightweight for Phase 3 POC. It uses librosa
-for pitch shifting and a naive pitch detector for key snapping.
 """
 
 from __future__ import annotations
@@ -11,6 +8,71 @@ import librosa
 
 
 SEMITONE_RATIO = 2 ** (1 / 12)
+
+# Utility for vibrato (delay-line modulation) and bitcrush (quantization).
+def apply_vibrato(
+    audio: np.ndarray,
+    sr: int,
+    depth_semitones: float = 0.0,
+    rate_hz: float = 5.0,
+    base_semitones: float = 0.0,
+    phase: float = 0.0,
+) -> tuple[np.ndarray, float]:
+    """
+    Light vibrato via time-varying fractional delay.
+    depth_semitones: peak deviation in semitones (converted to delay samples).
+    rate_hz: LFO frequency.
+    base_semitones: static shift applied before modulation.
+    phase: running phase in radians (returned for continuity across frames).
+    """
+    if depth_semitones == 0 and base_semitones == 0:
+        return audio, phase
+
+    n = np.arange(len(audio))
+    # Convert semitone modulation to delay in samples (approx via small-angle log2 relation)
+    # delay_samples ≈ (12 / ln(2)) * ln(freq_ratio) / (2π*rate) is messy;
+    # simpler: translate semitone modulation into instantaneous resample index.
+    lfo = np.sin(phase + 2 * np.pi * rate_hz * n / sr)
+    semitone_mod = base_semitones + depth_semitones * lfo
+    # Convert semitone modulation to playback rate multiplier
+    rate = SEMITONE_RATIO ** semitone_mod
+    # Integrate rate to get time-warped index
+    t = np.cumsum(rate)
+    t = t * (1.0 / np.mean(rate))  # normalize length
+    t = t - t[0]
+    t = t * (len(audio) - 1) / (t[-1] if t[-1] != 0 else 1)
+    # Resample with linear interp
+    out = np.interp(t, n, audio, left=0.0, right=0.0)
+    new_phase = (phase + 2 * np.pi * rate_hz * len(audio) / sr) % (2 * np.pi)
+    return out.astype(audio.dtype), new_phase
+
+
+def apply_bitcrush(audio: np.ndarray, bits: int = 8) -> np.ndarray:
+    """Quantize signal to given bit depth."""
+    if bits <= 0 or bits >= 16:
+        return audio
+    levels = float(2 ** bits)
+    return np.round(audio * (levels / 2)) / (levels / 2)
+
+
+def apply_downsample(audio: np.ndarray, factor: int) -> np.ndarray:
+    """Naive decimate + linear upsample back to original length."""
+    if factor is None or factor <= 1:
+        return audio
+    dec = audio[::factor]
+    # Upsample via interpolation to original length
+    x_dec = np.linspace(0, 1, num=len(dec), endpoint=True)
+    x_full = np.linspace(0, 1, num=len(audio), endpoint=True)
+    up = np.interp(x_full, x_dec, dec)
+    return up.astype(audio.dtype)
+
+
+def apply_gain_db(audio: np.ndarray, gain_db: float) -> np.ndarray:
+    """Apply gain in dB."""
+    if gain_db == 0:
+        return audio
+    factor = 10 ** (gain_db / 20.0)
+    return (audio * factor).astype(audio.dtype)
 
 
 def pitch_shift(audio: np.ndarray, sr: int, semitones: float) -> np.ndarray:

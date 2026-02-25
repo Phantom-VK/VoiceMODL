@@ -21,7 +21,14 @@ from .audio_io import (
     list_devices,
     RealTimeProcessor,
 )
-from .dsp_core import pitch_shift, simple_autotune
+from .dsp_core import (
+    pitch_shift,
+    simple_autotune,
+    apply_vibrato,
+    apply_bitcrush,
+    apply_downsample,
+    apply_gain_db,
+)
 from .presets import PRESETS
 
 
@@ -55,12 +62,32 @@ def cmd_passthrough(args: argparse.Namespace) -> None:
     preset = PRESETS[args.preset]
 
     drywet = float(np.clip(args.drywet, 0.0, 1.0))
+    vibrato_phase = 0.0
 
     def process_frame(mono: np.ndarray, sr: float) -> Optional[np.ndarray]:
+        nonlocal vibrato_phase
+
         if preset.get("autotune"):
             out = simple_autotune(mono, int(sr), key=preset.get("key", "C"), scale=preset.get("scale", "major"))
         else:
             out = pitch_shift(mono, int(sr), preset.get("pitch_shift_semitones", 0))
+
+        # Optional downsample + restore (lo-fi)
+        if "downsample_factor" in preset:
+            out = apply_downsample(out, int(preset["downsample_factor"]))
+
+        if "vibrato_depth_semitones" in preset or "vibrato_hz" in preset:
+            depth = float(preset.get("vibrato_depth_semitones", 0.0))
+            rate = float(preset.get("vibrato_hz", 5.0))
+            base = float(preset.get("pitch_shift_semitones", 0.0))
+            out, vibrato_phase = apply_vibrato(out, int(sr), depth, rate, base_semitones=base, phase=vibrato_phase)
+
+        if "bitcrush_bits" in preset:
+            out = apply_bitcrush(out, int(preset["bitcrush_bits"]))
+
+        if "volume_db" in preset:
+            out = apply_gain_db(out, float(preset["volume_db"]))
+
         blended = (1 - drywet) * mono + drywet * out
         return blended.astype(np.float32)
 
