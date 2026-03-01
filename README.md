@@ -31,6 +31,21 @@ INPUT_DEV=12 OUTPUT_DEV=12 PRESET=tpain bash scripts/run_voicemod_demo.sh
 
 5) In your VOIP app, select microphone: `VoiceModSource`.
 
+## GUI (experimental)
+Two options:
+
+1) Tk (no extra deps):  
+```bash
+source .venv/bin/activate
+python -m src.gui_tk
+```
+
+2) GTK (needs system `python3-gi`):  
+```bash
+python -m src.gui   # if python3-gi is installed
+```
+Both show device selectors, preset dropdown, and manual tweaks (pitch, vibrato, bitcrush, downsample, gain, dry/wet).
+
 ## Presets
 
 Editable in `configs/presets.json` and mirrored in `src/presets.py` for now.
