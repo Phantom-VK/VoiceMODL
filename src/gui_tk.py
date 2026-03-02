@@ -5,8 +5,6 @@ Run: python -m src.gui_tk
 
 from __future__ import annotations
 
-import sys
-import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional
@@ -37,7 +35,15 @@ class App(tk.Tk):
         self._build_ui()
 
     def _build_ui(self):
-        frame = ttk.Frame(self, padding=10)
+        style = ttk.Style()
+        try:
+            style.configure("TLabel", font=("Sans", 11))
+            style.configure("TButton", font=("Sans", 11))
+            style.configure("TCombobox", font=("Sans", 11))
+        except Exception:
+            pass
+
+        frame = ttk.Frame(self, padding=14)
         frame.pack(fill="both", expand=True)
 
         # Devices
@@ -85,43 +91,14 @@ class App(tk.Tk):
         self.blocksize = tk.IntVar(value=2048)
         ttk.Spinbox(frame, from_=256, to=8192, increment=128, textvariable=self.blocksize).grid(row=4, column=1, sticky="ew")
 
-        # Manual overrides
-        self.manual_override = tk.BooleanVar(value=False)
-        ttk.Checkbutton(frame, text="Use manual tweaks", variable=self.manual_override).grid(row=5, column=0, columnspan=2, sticky="w")
-
-        ttk.Label(frame, text="Pitch shift (st)").grid(row=5, column=0, sticky="w")
-        self.pitch = tk.DoubleVar(value=0.0)
-        ttk.Spinbox(frame, from_=-12, to=12, increment=0.5, textvariable=self.pitch).grid(row=5, column=1, sticky="ew")
-
-        self.autotune_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(frame, text="Autotune (C major)", variable=self.autotune_var).grid(row=6, column=0, columnspan=2, sticky="w")
-
-        ttk.Label(frame, text="Vibrato depth (st)").grid(row=7, column=0, sticky="w")
-        self.vib_depth = tk.DoubleVar(value=0.0)
-        ttk.Spinbox(frame, from_=0, to=6, increment=0.1, textvariable=self.vib_depth).grid(row=7, column=1, sticky="ew")
-        ttk.Label(frame, text="Vibrato rate (Hz)").grid(row=8, column=0, sticky="w")
-        self.vib_rate = tk.DoubleVar(value=5.0)
-        ttk.Spinbox(frame, from_=0.1, to=12, increment=0.1, textvariable=self.vib_rate).grid(row=8, column=1, sticky="ew")
-
-        ttk.Label(frame, text="Bitcrush bits").grid(row=9, column=0, sticky="w")
-        self.bits = tk.IntVar(value=8)
-        ttk.Spinbox(frame, from_=2, to=12, increment=1, textvariable=self.bits).grid(row=9, column=1, sticky="ew")
-
-        ttk.Label(frame, text="Downsample factor").grid(row=10, column=0, sticky="w")
-        self.downsample = tk.IntVar(value=1)
-        ttk.Spinbox(frame, from_=1, to=8, increment=1, textvariable=self.downsample).grid(row=10, column=1, sticky="ew")
-
-        ttk.Label(frame, text="Volume gain (dB)").grid(row=11, column=0, sticky="w")
-        self.gain = tk.DoubleVar(value=0.0)
-        ttk.Spinbox(frame, from_=-12, to=12, increment=0.5, textvariable=self.gain).grid(row=11, column=1, sticky="ew")
-
         # Buttons and status
         btn_frame = ttk.Frame(frame)
-        btn_frame.grid(row=12, column=0, columnspan=2, pady=8)
-        ttk.Button(btn_frame, text="Start", command=self.start).pack(side="left", padx=4)
-        ttk.Button(btn_frame, text="Stop", command=self.stop).pack(side="left", padx=4)
+        btn_frame.grid(row=5, column=0, columnspan=2, pady=8)
+        ttk.Button(btn_frame, text="Start", command=self.start, width=10).pack(side="left", padx=6)
+        ttk.Button(btn_frame, text="Stop", command=self.stop, width=10).pack(side="left", padx=6)
+        ttk.Button(btn_frame, text="Reset", command=self.reset_fields, width=10).pack(side="left", padx=6)
         self.status = ttk.Label(frame, text="Idle")
-        self.status.grid(row=13, column=0, columnspan=2, sticky="w")
+        self.status.grid(row=6, column=0, columnspan=2, sticky="w")
 
         for i in range(2):
             frame.columnconfigure(i, weight=1)
@@ -142,18 +119,6 @@ class App(tk.Tk):
             max_ch = max(1, min(in_dev.max_input_channels or 1, out_dev.max_output_channels or 1))
             channels = min(2, max_ch)
             preset = dict(PRESETS[self.preset_var.get()])
-            # Manual overrides are applied only if enabled
-            if self.manual_override.get():
-                preset["pitch_shift_semitones"] = self.pitch.get()
-                if self.autotune_var.get():
-                    preset["autotune"] = True
-                else:
-                    preset["autotune"] = False
-                preset["vibrato_depth_semitones"] = self.vib_depth.get()
-                preset["vibrato_hz"] = self.vib_rate.get()
-                preset["bitcrush_bits"] = self.bits.get()
-                preset["downsample_factor"] = self.downsample.get()
-                preset["volume_db"] = self.gain.get()
 
             drywet = float(np.clip(self.drywet.get(), 0.0, 1.0))
             blocksize = int(self.blocksize.get())
@@ -162,7 +127,14 @@ class App(tk.Tk):
             def process_frame(mono: np.ndarray, sr: float):
                 out = mono
                 if preset.get("autotune"):
-                    out = simple_autotune(out, int(sr), key=preset.get("key", "C"), scale=preset.get("scale", "major"))
+                    out, _ = simple_autotune(
+                        out,
+                        int(sr),
+                        key=preset.get("key", "C"),
+                        scale=preset.get("scale", "major"),
+                        retune_strength=float(preset.get("retune_strength", 1.0)),
+                        last_midi=None,
+                    )
                 else:
                     out = pitch_shift(out, int(sr), preset.get("pitch_shift_semitones", 0))
                 out = apply_downsample(out, int(preset.get("downsample_factor", 1)))
@@ -197,6 +169,13 @@ class App(tk.Tk):
             self.processor.stop()
             self.processor = None
         self.status.config(text="Stopped")
+
+    def reset_fields(self):
+        # Reset to defaults/preset defaults
+        self.drywet.set(1.0)
+        self.blocksize.set(2048)
+        # Keep current devices and preset selection
+        self.status.config(text="Idle")
 
     def destroy(self):
         self.stop()

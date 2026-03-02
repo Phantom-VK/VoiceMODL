@@ -1,55 +1,20 @@
 {
-  "normal": {
-    "pitch_shift_semitones": 0,
-    "autotune": false
-  },
-  "female": {
-    "pitch_shift_semitones": 4.0,
-    "autotune": false,
-    "volume_db": 1.5,
-    "vibrato_hz": 5.5,
-    "vibrato_depth_semitones": 0.2
-  },
-  "male": {
-    "pitch_shift_semitones": -4.0,
-    "autotune": false,
-    "volume_db": 1.0,
-    "vibrato_hz": 5.0,
-    "vibrato_depth_semitones": 0.1
-  },
+  "off": {"pitch_shift_semitones": 0, "autotune": false},
+  "man": {"pitch_shift_semitones": -1.5, "autotune": false},
+  "woman": {"pitch_shift_semitones": 2.5, "autotune": false},
+  "boy": {"pitch_shift_semitones": 1.25, "autotune": false},
+  "girl": {"pitch_shift_semitones": 2.8, "autotune": false},
+  "darth_vader": {"pitch_shift_semitones": -6.0, "autotune": false},
+  "chipmunk": {"pitch_shift_semitones": 10.0, "autotune": false},
+  "bad_mic": {"pitch_shift_semitones": 0, "autotune": false, "downsample_factor": 8, "volume_db": 0},
+  "radio": {"pitch_shift_semitones": 0, "autotune": false, "downsample_factor": 6, "volume_db": 0},
+  "megaphone": {"pitch_shift_semitones": 0, "autotune": false, "downsample_factor": 2, "volume_db": 0},
   "tpain": {
     "pitch_shift_semitones": 0,
     "autotune": true,
     "key": "Eb",
     "scale": "major",
-    "retune_speed": "fast",
-    "vibrato_hz": 4.5,
-    "vibrato_depth_semitones": 0.15,
-    "volume_db": 2.0
-  },
-  "funny": {
-    "pitch_shift_semitones": 0,
-    "autotune": true,
-    "key": "C",
-    "scale": "major",
-    "vibrato_hz": 5.0,
-    "vibrato_depth_semitones": 2.0,
-    "bitcrush_bits": 8,
-    "downsample_factor": 2,
-    "volume_db": 4.0
-  },
-  "lofi": {
-    "pitch_shift_semitones": -3,
-    "autotune": false,
-    "downsample_factor": 4,
-    "bitcrush_bits": 6,
-    "volume_db": 3.0
-  },
-  "clean_up": {
-    "pitch_shift_semitones": 3.0,
-    "autotune": false,
-    "vibrato_hz": 5.0,
-    "vibrato_depth_semitones": 0.1,
+    "retune_strength": 1.0,
     "volume_db": 1.5
   }
 }

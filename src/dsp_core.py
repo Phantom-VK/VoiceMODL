@@ -86,8 +86,8 @@ def pitch_shift(audio: np.ndarray, sr: int, semitones: float) -> np.ndarray:
 
     if semitones == 0:
         return audio
-    # Use high-quality resampler; adjust blocksize externally if CPU is tight.
-    return librosa.effects.pitch_shift(audio, sr=sr, n_steps=semitones, res_type="soxr_hq")
+    # High quality; if CPU is too high, change to soxr_vhq or kaiser_fast
+    return librosa.effects.pitch_shift(audio, sr=sr, n_steps=semitones, res_type="soxr_vhq")
 
 
 def hz_to_midi(hz: float) -> float:
@@ -151,26 +151,41 @@ def nearest_scale_midi(midi: float, key: str = "C", scale: str = "major") -> flo
     return snapped
 
 
-def simple_autotune(audio: np.ndarray, sr: int, key: str = "C", scale: str = "major") -> np.ndarray:
-    """Very lightweight autotune: detect f0, snap to scale, apply pitch shift.
+def simple_autotune(
+    audio: np.ndarray,
+    sr: int,
+    key: str = "C",
+    scale: str = "major",
+    retune_strength: float = 1.0,
+    last_midi: float | None = None,
+) -> tuple[np.ndarray, float | None]:
+    """Lightweight autotune: detect f0 (pyin), snap to scale, pitch shift.
 
-    - Detect f0 using librosa.pyin on a short frame.
-    - Compute semitone offset to nearest scale note.
-    - Apply pitch shift to the whole frame.
+    retune_strength: 1.0 = hard tune (instant snap), 0.0 = no correction.
+    Returns (audio, last_midi) to allow caller to keep state if desired.
     """
 
     if len(audio) == 0:
-        return audio
+        return audio, last_midi
 
-    f0, _, _ = librosa.pyin(audio, fmin=librosa.note_to_hz("C2"), fmax=librosa.note_to_hz("C7"))
-    # Ignore warnings when pyin returns all-NaN on silence/noise
+    f0, _, _ = librosa.pyin(
+        audio,
+        fmin=librosa.note_to_hz("C2"),
+        fmax=librosa.note_to_hz("C7"),
+        frame_length=2048,
+        win_length=1024,
+    )
     f0_median = np.nanmedian(f0)
     if np.isnan(f0_median) or f0_median <= 0:
-        # No pitch detected (silence/noise); leave frame untouched.
-        return audio
+        # fallback to last midi if available
+        if last_midi is None:
+            return audio, last_midi
+        midi = last_midi
+    else:
+        midi = hz_to_midi(f0_median)
 
-    midi = hz_to_midi(f0_median)
     target_midi = nearest_scale_midi(midi, key=key, scale=scale)
-    semitones = target_midi - midi
+    semitones = (target_midi - midi) * float(np.clip(retune_strength, 0.0, 1.0))
 
-    return pitch_shift(audio, sr, semitones)
+    shifted = pitch_shift(audio, sr, semitones)
+    return shifted, target_midi

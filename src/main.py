@@ -63,6 +63,7 @@ def cmd_passthrough(args: argparse.Namespace) -> None:
 
     drywet = float(np.clip(args.drywet, 0.0, 1.0))
     vibrato_phase = 0.0
+    last_midi = None
 
     # Clamp channels to what devices support
     try:
@@ -74,10 +75,17 @@ def cmd_passthrough(args: argparse.Namespace) -> None:
         channels = args.channels
 
     def process_frame(mono: np.ndarray, sr: float) -> Optional[np.ndarray]:
-        nonlocal vibrato_phase
+        nonlocal vibrato_phase, last_midi
 
         if preset.get("autotune"):
-            out = simple_autotune(mono, int(sr), key=preset.get("key", "C"), scale=preset.get("scale", "major"))
+            out, last_midi = simple_autotune(
+                mono,
+                int(sr),
+                key=preset.get("key", "C"),
+                scale=preset.get("scale", "major"),
+                retune_strength=float(preset.get("retune_strength", 1.0)),
+                last_midi=last_midi,
+            )
         else:
             out = pitch_shift(mono, int(sr), preset.get("pitch_shift_semitones", 0))
 
