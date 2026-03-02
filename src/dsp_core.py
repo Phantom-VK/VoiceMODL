@@ -86,8 +86,8 @@ def pitch_shift(audio: np.ndarray, sr: int, semitones: float) -> np.ndarray:
 
     if semitones == 0:
         return audio
-    # Use a lighter resampler to reduce real-time CPU load.
-    return librosa.effects.pitch_shift(audio, sr=sr, n_steps=semitones, res_type="kaiser_fast")
+    # Use high-quality resampler; adjust blocksize externally if CPU is tight.
+    return librosa.effects.pitch_shift(audio, sr=sr, n_steps=semitones, res_type="soxr_hq")
 
 
 def hz_to_midi(hz: float) -> float:

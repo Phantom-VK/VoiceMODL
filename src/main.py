@@ -64,6 +64,15 @@ def cmd_passthrough(args: argparse.Namespace) -> None:
     drywet = float(np.clip(args.drywet, 0.0, 1.0))
     vibrato_phase = 0.0
 
+    # Clamp channels to what devices support
+    try:
+        devs = {d.index: d for d in list_devices()}
+        in_max = devs.get(in_dev, None).max_input_channels if in_dev in devs else args.channels
+        out_max = devs.get(out_dev, None).max_output_channels if out_dev in devs else args.channels
+        channels = int(max(1, min(args.channels, in_max or 1, out_max or 1)))
+    except Exception:
+        channels = args.channels
+
     def process_frame(mono: np.ndarray, sr: float) -> Optional[np.ndarray]:
         nonlocal vibrato_phase
 
@@ -97,7 +106,7 @@ def cmd_passthrough(args: argparse.Namespace) -> None:
         output_device=out_dev,
         samplerate=int(args.samplerate),
         blocksize=args.blocksize,
-        channels=args.channels,
+        channels=channels,
     )
 
     print("[info] Starting pass-through. Ctrl+C to stop.")

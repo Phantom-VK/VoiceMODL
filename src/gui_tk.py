@@ -47,15 +47,27 @@ class App(tk.Tk):
         self.output_var = tk.StringVar()
 
         devices = list_devices()
-        choices = [f"{d.index}:{d.name}" for d in devices]
+        # Prefer pulse/default devices; otherwise first with inputs/outputs
+        choices = []
+        default_in_idx = None
+        default_out_idx = None
+        for d in devices:
+            if d.max_input_channels > 0:
+                choices.append(f"{d.index}:{d.name}")
+                if default_in_idx is None and ("pulse" in d.name.lower() or "default" in d.name.lower()):
+                    default_in_idx = len(choices) - 1
+            elif d.max_output_channels > 0:
+                choices.append(f"{d.index}:{d.name}")
+            if d.max_output_channels > 0 and default_out_idx is None and ("pulse" in d.name.lower() or "default" in d.name.lower()):
+                default_out_idx = len(choices) - 1
         if not choices:
             choices = ["0:default"]
         self.input_box = ttk.Combobox(frame, textvariable=self.input_var, values=choices, state="readonly")
         self.output_box = ttk.Combobox(frame, textvariable=self.output_var, values=choices, state="readonly")
         self.input_box.grid(row=0, column=1, sticky="ew")
         self.output_box.grid(row=1, column=1, sticky="ew")
-        self.input_box.current(0)
-        self.output_box.current(0)
+        self.input_box.current(default_in_idx if default_in_idx is not None else 0)
+        self.output_box.current(default_out_idx if default_out_idx is not None else 0)
 
         # Preset
         ttk.Label(frame, text="Preset").grid(row=2, column=0, sticky="w")
@@ -74,6 +86,9 @@ class App(tk.Tk):
         ttk.Spinbox(frame, from_=256, to=8192, increment=128, textvariable=self.blocksize).grid(row=4, column=1, sticky="ew")
 
         # Manual overrides
+        self.manual_override = tk.BooleanVar(value=False)
+        ttk.Checkbutton(frame, text="Use manual tweaks", variable=self.manual_override).grid(row=5, column=0, columnspan=2, sticky="w")
+
         ttk.Label(frame, text="Pitch shift (st)").grid(row=5, column=0, sticky="w")
         self.pitch = tk.DoubleVar(value=0.0)
         ttk.Spinbox(frame, from_=-12, to=12, increment=0.5, textvariable=self.pitch).grid(row=5, column=1, sticky="ew")
@@ -117,16 +132,28 @@ class App(tk.Tk):
         try:
             in_idx = int(self.input_var.get().split(":")[0])
             out_idx = int(self.output_var.get().split(":")[0])
+            # Clamp channels to device capabilities
+            in_dev = next((d for d in list_devices() if d.index == in_idx), None)
+            out_dev = next((d for d in list_devices() if d.index == out_idx), None)
+            if not in_dev or in_dev.max_input_channels < 1:
+                raise RuntimeError("Selected input has no channels; pick another device.")
+            if not out_dev or out_dev.max_output_channels < 1:
+                raise RuntimeError("Selected output has no channels; pick another device.")
+            max_ch = max(1, min(in_dev.max_input_channels or 1, out_dev.max_output_channels or 1))
+            channels = min(2, max_ch)
             preset = dict(PRESETS[self.preset_var.get()])
-            # Manual overrides
-            preset["pitch_shift_semitones"] = self.pitch.get()
-            if self.autotune_var.get():
-                preset["autotune"] = True
-            preset["vibrato_depth_semitones"] = self.vib_depth.get()
-            preset["vibrato_hz"] = self.vib_rate.get()
-            preset["bitcrush_bits"] = self.bits.get()
-            preset["downsample_factor"] = self.downsample.get()
-            preset["volume_db"] = self.gain.get()
+            # Manual overrides are applied only if enabled
+            if self.manual_override.get():
+                preset["pitch_shift_semitones"] = self.pitch.get()
+                if self.autotune_var.get():
+                    preset["autotune"] = True
+                else:
+                    preset["autotune"] = False
+                preset["vibrato_depth_semitones"] = self.vib_depth.get()
+                preset["vibrato_hz"] = self.vib_rate.get()
+                preset["bitcrush_bits"] = self.bits.get()
+                preset["downsample_factor"] = self.downsample.get()
+                preset["volume_db"] = self.gain.get()
 
             drywet = float(np.clip(self.drywet.get(), 0.0, 1.0))
             blocksize = int(self.blocksize.get())
@@ -157,7 +184,7 @@ class App(tk.Tk):
                 output_device=out_idx,
                 samplerate=48_000,
                 blocksize=blocksize,
-                channels=2,
+                channels=channels,
             )
             self.processor.start()
             self.status.config(text="Running")
